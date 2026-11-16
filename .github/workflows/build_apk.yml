@@ -64,11 +64,6 @@ jobs:
                   with open(gradle, 'w') as f:
                       f.write(g)
 
-          root_gradle = 'android/build.gradle'
-          if os.path.exists(root_gradle):
-              with open(root_gradle, 'a') as f:
-                  f.write('\nsubprojects {\n    afterEvaluate { project ->\n        if (project.hasProperty("android")) {\n            project.android {\n                compileSdkVersion 35\n            }\n        }\n    }\n}\n')
-
           icon_path = 'assets/icon/app_icon.png'
           if os.path.exists(icon_path):
               src = Image.open(icon_path).convert('RGBA')

@@ -1,0 +1,90 @@
+name: Build Mithila Stream Studio APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build_apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+
+      - name: Generate Android project & configure branding, icons, permissions + minSdk 24
+        run: |
+          flutter create --org com.mithilastream.studio --project-name mithila_stream_studio .
+          python3 - <<'PY'
+          import os, re
+          from PIL import Image
+
+          manifest = 'android/app/src/main/AndroidManifest.xml'
+          with open(manifest, 'r') as f:
+              m = f.read()
+
+          m = re.sub(r'android:label="[^"]*"', 'android:label="Mithila Stream Studio"', m)
+
+          perms = [
+              '<uses-permission android:name="android.permission.INTERNET"/>',
+              '<uses-permission android:name="android.permission.RECORD_AUDIO"/>',
+              '<uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>',
+              '<uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>',
+              '<uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>',
+              '<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>',
+              '<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>',
+          ]
+          inject = '\n    '.join(p for p in perms if p not in m)
+          if inject:
+              m = m.replace('<application', f'    {inject}\n    <application', 1)
+          with open(manifest, 'w') as f:
+              f.write(m)
+
+          for gradle in ['android/app/build.gradle', 'android/app/build.gradle.kts']:
+              if os.path.exists(gradle):
+                  with open(gradle, 'r') as f:
+                      g = f.read()
+                  g = re.sub(r'minSdk\s*=\s*\S+', 'minSdk = 24', g)
+                  g = re.sub(r'minSdkVersion\s+\S+', 'minSdkVersion 24', g)
+                  with open(gradle, 'w') as f:
+                      f.write(g)
+
+          icon_path = 'assets/icon/app_icon.png'
+          if os.path.exists(icon_path):
+              src = Image.open(icon_path).convert('RGBA')
+              sizes = {
+                  'mipmap-mdpi': 48,
+                  'mipmap-hdpi': 72,
+                  'mipmap-xhdpi': 96,
+                  'mipmap-xxhdpi': 144,
+                  'mipmap-xxxhdpi': 192,
+              }
+              for folder, sz in sizes.items():
+                  out_dir = f'android/app/src/main/res/{folder}'
+                  os.makedirs(out_dir, exist_ok=True)
+                  src.resize((sz, sz), Image.LANCZOS).save(f'{out_dir}/ic_launcher.png')
+          PY
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Release APK
+        run: flutter build apk --release
+
+      - name: Upload Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mithila-Stream-Studio-APK
+          path: build/app/outputs/flutter-apk/app-release.apk

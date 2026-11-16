@@ -26,6 +26,7 @@ jobs:
 
       - name: Generate Android project & configure branding, icons, permissions + minSdk 24
         run: |
+          sudo apt-get update && sudo apt-get install -y python3-pil
           flutter create --org com.mithilastream.studio --project-name mithila_stream_studio .
           python3 - <<'PY'
           import os, re

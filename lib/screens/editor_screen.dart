@@ -1019,7 +1019,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                     if (result.isSuccess) {
                                       _adminConfig = _adminConfig.copyWith(totalExports: _adminConfig.totalExports + 1);
                                       if (result.producedRealFile && result.outputPath != null) {
-                                        await ExportService.saveToGallery(result.outputPath!);
+                                        ExportService.saveToGallery(result.outputPath!);
                                       }
                                     }
                                   });

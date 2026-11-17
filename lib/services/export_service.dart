@@ -798,7 +798,7 @@ class ExportService {
     ProColorGrading proGrading = const ProColorGrading(),
     TransitionConfig transition = const TransitionConfig(),
     BrandWatermarkConfig watermark = const BrandWatermarkConfig(),
-    int crf = 20,
+    int? targetHeight, int crf = 20,
     double playbackSpeed = 1.0,
     bool isMuted = false,
     required void Function(double progress, String status) onProgress,

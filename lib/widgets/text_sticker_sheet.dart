@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../models/editor_overlays.dart';
@@ -7,6 +8,7 @@ class TextStickerSheet extends StatefulWidget {
   final List<StickerOverlayItem> stickerOverlays;
   final ValueChanged<TextOverlayItem> onAddText;
   final ValueChanged<StickerOverlayItem> onAddSticker;
+  final ValueChanged<BannerOverlayItem>? onAddBanner;
   final VoidCallback onClearAll;
   final VoidCallback onClose;
 
@@ -16,6 +18,7 @@ class TextStickerSheet extends StatefulWidget {
     required this.stickerOverlays,
     required this.onAddText,
     required this.onAddSticker,
+    this.onAddBanner,
     required this.onClearAll,
     required this.onClose,
   });
@@ -180,6 +183,26 @@ class _TextStickerSheetState extends State<TextStickerSheet> {
               Text('${_fontSize.round()}pt', style: const TextStyle(color: Colors.white, fontSize: 12)),
             ],
           ),
+          const SizedBox(height: 8),
+          if (widget.onAddBanner != null)
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final res = await FilePicker.platform.pickFiles(type: FileType.image);
+                  if (res != null && res.files.isNotEmpty && res.files.first.path != null) {
+                    widget.onAddBanner!(
+                      BannerOverlayItem(
+                        id: DateTime.now().millisecondsSinceEpoch.toString(),
+                        imagePath: res.files.first.path!,
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.add_photo_alternate, color: Color(0xFF38BDF8), size: 18),
+                label: const Text('Add Banner / Photo Overlay', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 12)),
+              ),
+            ),
           const SizedBox(height: 4),
           SizedBox(
             height: 42,

@@ -98,3 +98,19 @@ class AudioTrackConfig {
     );
   }
 }
+
+class BannerOverlayItem {
+  final String id;
+  final String imagePath;
+  double normX;
+  double normY;
+  double widthPx;
+
+  BannerOverlayItem({
+    required this.id,
+    required this.imagePath,
+    this.normX = 0.5,
+    this.normY = 0.82,
+    this.widthPx = 180.0,
+  });
+}

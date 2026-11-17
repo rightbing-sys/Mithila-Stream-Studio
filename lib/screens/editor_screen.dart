@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -65,6 +66,7 @@ class _EditorScreenState extends State<EditorScreen> {
   AudioTrackConfig _audioConfig = const AudioTrackConfig();
   final List<TextOverlayItem> _textOverlays = [];
   final List<StickerOverlayItem> _stickerOverlays = [];
+  final List<BannerOverlayItem> _bannerOverlays = [];
   bool _isRatioOpen = false;
   bool _isMusicOpen = false;
   bool _isTextStickerOpen = false;
@@ -172,6 +174,47 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Future<void> _pickVideo() => pickVideo();
+
+
+  Future<void> _recordVideo() async {
+    try {
+      final picked = await ImagePicker().pickVideo(source: ImageSource.camera);
+      if (picked == null) return;
+      final file = File(picked.path);
+      if (!await file.exists()) return;
+
+      setState(() {
+        _isLoading = true;
+        _playerError = null;
+      });
+      await controller?.pause();
+      await controller?.dispose();
+      final newCtrl = VideoPlayerController.file(file);
+      await newCtrl.initialize();
+      newCtrl.addListener(_videoListener);
+      await newCtrl.setLooping(true);
+      if (!mounted) return;
+      setState(() {
+        controller = newCtrl;
+        selectedVideo = file;
+        _videoPath = picked.path;
+        _videoName = picked.name;
+        _totalDuration = newCtrl.value.duration;
+        _startTrim = Duration.zero;
+        _endTrim = newCtrl.value.duration;
+        _currentPosition = Duration.zero;
+        _isPlaying = false;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Camera error: $e')),
+        );
+      }
+    }
+  }
 
   Future<void> pickVideo() async {
     setState(() {
@@ -630,6 +673,7 @@ class _EditorScreenState extends State<EditorScreen> {
                       const SizedBox(width: 8),
                       for (final option in <MapEntry<String, int?>>[
                         const MapEntry('Source', null),
+                        const MapEntry('4K', 2160),
                         const MapEntry('1080p', 1080),
                         const MapEntry('720p', 720),
                         const MapEntry('480p', 480),
@@ -953,6 +997,8 @@ class _EditorScreenState extends State<EditorScreen> {
                                           baseVideoFilter: ffmpegFilter,
                                           audioConfig: _audioConfig,
                                           textOverlays: _textOverlays,
+                                          bannerOverlays: _bannerOverlays,
+                                          targetHeight: selectedTargetHeight,
                                           proGrading: _proGrading,
                                           transition: _transitionConfig,
                                           watermark: _watermarkConfig,
@@ -972,11 +1018,14 @@ class _EditorScreenState extends State<EditorScreen> {
                                     exportResult = result;
                                     if (result.isSuccess) {
                                       _adminConfig = _adminConfig.copyWith(totalExports: _adminConfig.totalExports + 1);
+                                      if (result.producedRealFile && result.outputPath != null) {
+                                        await ExportService.saveToGallery(result.outputPath!);
+                                      }
                                     }
                                   });
                                 },
                           icon: Icon(isComplete ? Icons.done : Icons.save_alt, size: 18),
-                          label: Text(isComplete ? 'Done' : 'Start Export'),
+                          label: Text(isComplete ? 'Saved!' : 'Save Video (MP4)'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF10B981),
                             foregroundColor: Colors.white,
@@ -985,6 +1034,37 @@ class _EditorScreenState extends State<EditorScreen> {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: isExporting
+                          ? null
+                          : () async {
+                              setModalState(() {
+                                isExporting = true;
+                                exportProgress = 0.1;
+                                exportStatus = 'Saving MP3 Audio...';
+                              });
+                              final aRes = await ExportService.exportAudioMp3(
+                                inputPath: _videoPath ?? '',
+                                start: _startTrim,
+                                end: _endTrim,
+                                onProgress: (p, st) => setModalState(() {
+                                  exportProgress = p;
+                                  exportStatus = st;
+                                }),
+                              );
+                              setModalState(() {
+                                isExporting = false;
+                                isComplete = aRes.isSuccess;
+                                exportResult = aRes;
+                              });
+                            },
+                      icon: const Icon(Icons.audiotrack, size: 16, color: Color(0xFF10B981)),
+                      label: const Text('Save Audio Only (MP3)', style: TextStyle(color: Color(0xFF10B981), fontSize: 12)),
+                    ),
                   ),
                   if (isComplete &&
                       exportResult != null &&
@@ -1033,6 +1113,26 @@ class _EditorScreenState extends State<EditorScreen> {
                             label: const Text('Share Reel', style: TextStyle(color: Color(0xFFF59E0B), fontSize: 12)),
                           ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Direct Share (Video + Music):',
+                        style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        _shareChip('YouTube', Icons.play_circle_fill, Colors.redAccent, exportResult!.outputPath!),
+                        _shareChip('Instagram', Icons.camera_alt, Colors.pinkAccent, exportResult!.outputPath!),
+                        _shareChip('Facebook', Icons.facebook, Colors.blueAccent, exportResult!.outputPath!),
+                        _shareChip('WhatsApp', Icons.chat, Colors.greenAccent, exportResult!.outputPath!),
+                        _shareChip('Arattai', Icons.forum, const Color(0xFF38BDF8), exportResult!.outputPath!),
                       ],
                     ),
                   ],
@@ -1792,6 +1892,59 @@ class _EditorScreenState extends State<EditorScreen> {
     return null;
   }
 
+
+  Future<void> _handleBackPressed() async {
+    if (_isFiltersOpen || _isCaptionsOpen || _isVoiceoverOpen || _isRatioOpen ||
+        _isMusicOpen || _isTextStickerOpen || _isAiOpen || _isAdjustOpen ||
+        _isTransitionOpen || _isBrandOpen) {
+      setState(() {
+        _isFiltersOpen = _isCaptionsOpen = _isVoiceoverOpen = _isRatioOpen =
+            _isMusicOpen = _isTextStickerOpen = _isAiOpen = _isAdjustOpen =
+                _isTransitionOpen = _isBrandOpen = false;
+      });
+      return;
+    }
+    if (controller != null && controller!.value.isInitialized) {
+      final goHome = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF0F172A),
+          title: const Text('Home par wapas jayein?', style: TextStyle(color: Colors.white, fontSize: 16)),
+          content: const Text('Current video band karke Home screen par jaana hai?', style: TextStyle(color: Colors.white70, fontSize: 13)),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Nahi')),
+            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Haan, Back')),
+          ],
+        ),
+      );
+      if (goHome == true) {
+        await controller?.pause();
+        await controller?.dispose();
+        setState(() {
+          controller = null;
+          _videoPath = null;
+          _isPlaying = false;
+        });
+      }
+      return;
+    }
+    final exitApp = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        title: const Text('App band karein?', style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: const Text('Kya aap Mithila Stream Studio se bahar jaana chahte hain?', style: TextStyle(color: Colors.white70, fontSize: 13)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Rukein')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Exit')),
+        ],
+      ),
+    );
+    if (exitApp == true && mounted) {
+      SystemNavigator.pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasVideo = controller != null && controller!.value.isInitialized;
@@ -1800,8 +1953,20 @@ class _EditorScreenState extends State<EditorScreen> {
         ? _partialSpeechText
         : (activeCue?.text.isNotEmpty == true ? activeCue!.text : captionText);
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _handleBackPressed();
+      },
+      child: Scaffold(
       appBar: AppBar(
+        leading: hasVideo
+            ? IconButton(
+                tooltip: 'Back',
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: _handleBackPressed,
+              )
+            : null,
         title: Row(
           children: [
             Container(
@@ -1835,6 +2000,11 @@ class _EditorScreenState extends State<EditorScreen> {
         ),
         actions: [
           IconButton(
+            tooltip: 'Record Video',
+            icon: const Icon(Icons.videocam, color: Color(0xFFF43F5E), size: 22),
+            onPressed: _recordVideo,
+          ),
+          IconButton(
             tooltip: 'Admin Panel',
             icon: const Icon(Icons.admin_panel_settings, color: Color(0xFF38BDF8), size: 22),
             onPressed: _openAdminPanel,
@@ -1857,11 +2027,25 @@ class _EditorScreenState extends State<EditorScreen> {
         ],
       ),
       floatingActionButton: !hasVideo
-          ? FloatingActionButton.extended(
-              onPressed: pickVideo,
-              icon: const Icon(Icons.add_photo_alternate),
-              label: const Text('Import Video'),
-              backgroundColor: const Color(0xFF38BDF8),
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FloatingActionButton.extended(
+                  heroTag: 'rec_vid',
+                  onPressed: _recordVideo,
+                  icon: const Icon(Icons.videocam),
+                  label: const Text('Record'),
+                  backgroundColor: const Color(0xFFF43F5E),
+                ),
+                const SizedBox(width: 10),
+                FloatingActionButton.extended(
+                  heroTag: 'imp_vid',
+                  onPressed: pickVideo,
+                  icon: const Icon(Icons.add_photo_alternate),
+                  label: const Text('Import Video'),
+                  backgroundColor: const Color(0xFF38BDF8),
+                ),
+              ],
             )
           : null,
       body: Column(
@@ -2046,6 +2230,29 @@ class _EditorScreenState extends State<EditorScreen> {
                                                 ),
                                               ),
                                             ),
+                                          ..._bannerOverlays.map((bn) => Positioned(
+                                                left: (bn.normX * constraints.maxWidth - bn.widthPx / 2)
+                                                    .clamp(4.0, constraints.maxWidth - 40),
+                                                top: (bn.normY * constraints.maxHeight - 40)
+                                                    .clamp(4.0, constraints.maxHeight - 40),
+                                                child: GestureDetector(
+                                                  onPanUpdate: (d) {
+                                                    setState(() {
+                                                      bn.normX = (bn.normX + d.delta.dx / constraints.maxWidth).clamp(0.05, 0.95);
+                                                      bn.normY = (bn.normY + d.delta.dy / constraints.maxHeight).clamp(0.05, 0.95);
+                                                    });
+                                                  },
+                                                  onLongPress: () => setState(() => _bannerOverlays.remove(bn)),
+                                                  child: ClipRRect(
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    child: Image.file(
+                                                      File(bn.imagePath),
+                                                      width: bn.widthPx,
+                                                      fit: BoxFit.contain,
+                                                    ),
+                                                  ),
+                                                ),
+                                              )),
                                           ..._stickerOverlays.map((st) => Positioned(
                                                 left: (st.normX * constraints.maxWidth - st.size / 2)
                                                     .clamp(4.0, constraints.maxWidth - st.size),
@@ -2652,9 +2859,11 @@ class _EditorScreenState extends State<EditorScreen> {
               stickerOverlays: _stickerOverlays,
               onAddText: (item) => setState(() => _textOverlays.add(item)),
               onAddSticker: (st) => setState(() => _stickerOverlays.add(st)),
+              onAddBanner: (bn) => setState(() => _bannerOverlays.add(bn)),
               onClearAll: () => setState(() {
                 _textOverlays.clear();
                 _stickerOverlays.clear();
+                _bannerOverlays.clear();
               }),
               onClose: () => setState(() => _isTextStickerOpen = false),
             ),
@@ -2878,6 +3087,7 @@ class _EditorScreenState extends State<EditorScreen> {
             onExportPressed: _showExportDialog,
           ),
         ],
+      ),
       ),
     );
   }

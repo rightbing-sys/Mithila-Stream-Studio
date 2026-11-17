@@ -24,9 +24,8 @@ jobs:
           flutter-version: '3.27.4'
           channel: 'stable'
 
-      - name: Configure Android project, branding, icons, permissions + Kotlin 2.1.0
+      - name: Generate Android project & configure branding, icons, permissions + minSdk 24
         run: |
-          sudo apt-get update && sudo apt-get install -y python3-pil
           flutter create --org com.mithilastream.studio --project-name mithila_stream_studio .
           python3 - <<'PY'
           import os, re
@@ -37,9 +36,11 @@ jobs:
               m = f.read()
 
           m = re.sub(r'android:label="[^"]*"', 'android:label="Mithila Stream Studio"', m)
+
           perms = [
               '<uses-permission android:name="android.permission.INTERNET"/>',
               '<uses-permission android:name="android.permission.RECORD_AUDIO"/>',
+              '<uses-permission android:name="android.permission.CAMERA"/>',
               '<uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>',
               '<uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>',
               '<uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>',
@@ -52,14 +53,6 @@ jobs:
           with open(manifest, 'w') as f:
               f.write(m)
 
-          for settings in ['android/settings.gradle', 'android/settings.gradle.kts']:
-              if os.path.exists(settings):
-                  with open(settings, 'r') as f:
-                      st = f.read()
-                  st = re.sub(r'(org\.jetbrains\.kotlin\.android["\']?\s+version\s+["\'])[^"\']+(["\'])', r'\g<1>2.1.0\g<2>', st)
-                  with open(settings, 'w') as f:
-                      f.write(st)
-
           for gradle in ['android/app/build.gradle', 'android/app/build.gradle.kts']:
               if os.path.exists(gradle):
                   with open(gradle, 'r') as f:
@@ -71,16 +64,25 @@ jobs:
                   with open(gradle, 'w') as f:
                       f.write(g)
 
+          for settings in ['android/settings.gradle', 'android/settings.gradle.kts']:
+              if os.path.exists(settings):
+                  with open(settings, 'r') as f:
+                      st = f.read()
+                  st = re.sub(r'(org\.jetbrains\.kotlin\.android["\']?\s+version\s+["\'])[^"\']+(["\'])', r'\g<1>2.1.0\g<2>', st)
+                  with open(settings, 'w') as f:
+                      f.write(st)
+
           icon_path = 'assets/icon/app_icon.png'
           if os.path.exists(icon_path):
               src = Image.open(icon_path).convert('RGBA')
-              for folder, sz in {
+              sizes = {
                   'mipmap-mdpi': 48,
                   'mipmap-hdpi': 72,
                   'mipmap-xhdpi': 96,
                   'mipmap-xxhdpi': 144,
                   'mipmap-xxxhdpi': 192,
-              }.items():
+              }
+              for folder, sz in sizes.items():
                   out_dir = f'android/app/src/main/res/{folder}'
                   os.makedirs(out_dir, exist_ok=True)
                   src.resize((sz, sz), Image.LANCZOS).save(f'{out_dir}/ic_launcher.png')

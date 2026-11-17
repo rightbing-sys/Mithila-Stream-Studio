@@ -13,7 +13,7 @@ dependencies:
   video_player: ^2.9.2
   file_picker: ^8.1.2
   speech_to_text: ^7.0.0
-  flutter_tts: ^4.0.2
+  flutter_tts: ^4.2.5
   ffmpeg_kit_flutter_new: ^4.6.8
   path_provider: ^2.1.4
   gal: ^2.3.0

@@ -325,31 +325,7 @@ class ExportService {
     final hasSpeedChange = (config.playbackSpeed - 1.0).abs() >= 0.01;
     final needsVideoEncode = vfParts.isNotEmpty || !config.streamCopyWhenUnfiltered;
 
-    if (bannerOverlays.isNotEmpty) {
-      final baseFilter = vfParts.isNotEmpty ? vfParts.join(',') : 'null';
-      final fcParts = <String>['[0:v]$baseFilter[v0]'];
-      String prev = '[v0]';
-      for (int i = 0; i < bannerOverlays.length; i++) {
-        final bn = bannerOverlays[i];
-        final idx = bannerStartIdx + i;
-        final w = (bn.widthPx * 2.2).round();
-        fcParts.add('[$idx:v]scale=$w:-1[ovr$i]');
-        final next = (i == bannerOverlays.length - 1) ? '[vout]' : '[vtmp$i]';
-        fcParts.add('$prev[ovr$i]overlay=(W*${bn.normX.toStringAsFixed(2)}-w/2):(H*${bn.normY.toStringAsFixed(2)}-h/2)$next');
-        prev = next;
-      }
-      if (hasMusic && bannerOverlays.isEmpty) {
-        final origVol = isMuted ? 0.0 : audioConfig.originalVolume;
-        final musVol = audioConfig.autoDucking ? (audioConfig.musicVolume * 0.75) : audioConfig.musicVolume;
-        fcParts.add('[0:a]volume=${origVol.toStringAsFixed(2)}[a0]');
-        fcParts.add('[1:a]volume=${musVol.toStringAsFixed(2)}[a1]');
-        fcParts.add('[a0][a1]amix=inputs=2:duration=first:dropout_transition=2[aout]');
-        args.addAll(['-filter_complex', fcParts.join(';'), '-map', '[vout]', '-map', '[aout]']);
-      } else {
-        args.addAll(['-filter_complex', fcParts.join(';'), '-map', '[vout]']);
-        if (!isMuted) args.addAll(['-map', '0:a?']);
-      }
-    } else if (vfParts.isNotEmpty) {
+    if (vfParts.isNotEmpty) {
       args.addAll(['-vf', vfParts.join(',')]);
     }
 
@@ -749,7 +725,31 @@ class ExportService {
       );
     }
 
-    if (vfParts.isNotEmpty) {
+    if (bannerOverlays.isNotEmpty) {
+      final baseFilter = vfParts.isNotEmpty ? vfParts.join(',') : 'null';
+      final fcParts = <String>['[0:v]$baseFilter[v0]'];
+      String prev = '[v0]';
+      for (int i = 0; i < bannerOverlays.length; i++) {
+        final bn = bannerOverlays[i];
+        final idx = bannerStartIdx + i;
+        final w = (bn.widthPx * 2.2).round();
+        fcParts.add('[$idx:v]scale=$w:-1[ovr$i]');
+        final next = (i == bannerOverlays.length - 1) ? '[vout]' : '[vtmp$i]';
+        fcParts.add('$prev[ovr$i]overlay=(W*${bn.normX.toStringAsFixed(2)}-w/2):(H*${bn.normY.toStringAsFixed(2)}-h/2)$next');
+        prev = next;
+      }
+      if (hasMusic) {
+        final origVol = isMuted ? 0.0 : audioConfig.originalVolume;
+        final musVol = audioConfig.autoDucking ? (audioConfig.musicVolume * 0.75) : audioConfig.musicVolume;
+        fcParts.add('[0:a]volume=${origVol.toStringAsFixed(2)}[a0]');
+        fcParts.add('[1:a]volume=${musVol.toStringAsFixed(2)}[a1]');
+        fcParts.add('[a0][a1]amix=inputs=2:duration=first:dropout_transition=2[aout]');
+        args.addAll(['-filter_complex', fcParts.join(';'), '-map', '[vout]', '-map', '[aout]']);
+      } else {
+        args.addAll(['-filter_complex', fcParts.join(';'), '-map', '[vout]']);
+        if (!isMuted) args.addAll(['-map', '0:a?']);
+      }
+    } else if (vfParts.isNotEmpty) {
       args.addAll(['-vf', vfParts.join(',')]);
     }
 

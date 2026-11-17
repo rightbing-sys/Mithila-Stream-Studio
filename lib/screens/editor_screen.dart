@@ -1019,7 +1019,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                     if (result.isSuccess) {
                                       _adminConfig = _adminConfig.copyWith(totalExports: _adminConfig.totalExports + 1);
                                       if (result.producedRealFile && result.outputPath != null) {
-                                        ExportService.saveToGallery(result.outputPath!);
+                                        await ExportService.saveToGallery(result.outputPath!);
                                       }
                                     }
                                   });
@@ -3089,6 +3089,23 @@ class _EditorScreenState extends State<EditorScreen> {
         ],
       ),
       ),
+    );
+  }
+
+
+  Widget _shareChip(String platform, IconData icon, Color color, String filePath) {
+    return ActionChip(
+      avatar: Icon(icon, size: 15, color: color),
+      label: Text(platform, style: const TextStyle(color: Colors.white, fontSize: 11)),
+      backgroundColor: const Color(0xFF1E293B),
+      side: BorderSide(color: color.withOpacity(0.5)),
+      onPressed: () async {
+        await Share.shareXFiles(
+          [XFile(filePath)],
+          subject: 'Mithila Stream Studio - $platform',
+          text: 'Edited with Mithila Stream Studio #$platform #MithilaStreamStudio',
+        );
+      },
     );
   }
 
